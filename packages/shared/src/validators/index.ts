@@ -131,6 +131,7 @@ export {
   createIssueSchema,
   createIssueLabelSchema,
   updateIssueSchema,
+  issueExecutionGateContractSchema,
   issueExecutionPolicySchema,
   issueExecutionStateSchema,
   issueExecutionWorkspaceSettingsSchema,

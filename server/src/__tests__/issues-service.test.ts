@@ -7,10 +7,12 @@ import {
   agents,
   companies,
   createDb,
+  documents,
   executionWorkspaces,
   heartbeatRuns,
   instanceSettings,
   issueComments,
+  issueDocuments,
   issueInboxArchives,
   issueRelations,
   issues,
@@ -63,10 +65,12 @@ describeEmbeddedPostgres("issueService.list participantAgentId", () => {
 
   afterEach(async () => {
     await db.delete(issueComments);
+    await db.delete(issueDocuments);
     await db.delete(issueRelations);
     await db.delete(issueInboxArchives);
     await db.delete(activityLog);
     await db.delete(heartbeatRuns);
+    await db.delete(documents);
     await db.delete(issues);
     await db.delete(executionWorkspaces);
     await db.delete(projectWorkspaces);
@@ -715,9 +719,11 @@ describeEmbeddedPostgres("issueService.create workspace inheritance", () => {
 
   afterEach(async () => {
     await db.delete(issueComments);
+    await db.delete(issueDocuments);
     await db.delete(issueRelations);
     await db.delete(issueInboxArchives);
     await db.delete(activityLog);
+    await db.delete(documents);
     await db.delete(issues);
     await db.delete(executionWorkspaces);
     await db.delete(projectWorkspaces);
@@ -992,9 +998,11 @@ describeEmbeddedPostgres("issueService blockers and dependency wake readiness", 
 
   afterEach(async () => {
     await db.delete(issueComments);
+    await db.delete(issueDocuments);
     await db.delete(issueRelations);
     await db.delete(issueInboxArchives);
     await db.delete(activityLog);
+    await db.delete(documents);
     await db.delete(issues);
     await db.delete(executionWorkspaces);
     await db.delete(projectWorkspaces);
@@ -1068,6 +1076,69 @@ describeEmbeddedPostgres("issueService blockers and dependency wake readiness", 
     await expect(
       svc.update(issueB, { blockedByIssueIds: [issueA] }),
     ).rejects.toMatchObject({ status: 422 });
+  });
+
+  it("requires valid closeout evidence before issueService.update moves a contracted issue to Done", async () => {
+    const companyId = randomUUID();
+    const issueId = randomUUID();
+    const gateContract = {
+      kind: "aetherion_quality_funnel",
+      artifactKeys: {
+        planAudit: "plan_audit",
+        executionReport: "execution_report",
+        adversarialReview: "adversarial_review",
+        codeReview: "code_review",
+        verification: "verification",
+        closeout: "closeout",
+      },
+      reviewBudgetsMinutes: {
+        docsTemplate: 15,
+        normalCodeChange: 40,
+      },
+      maxAdversarialChangeRequests: 1,
+    };
+    const executionPolicy = {
+      mode: "normal",
+      commentRequired: true,
+      gateContract,
+      stages: [],
+    };
+    await db.insert(companies).values({
+      id: companyId,
+      name: "Paperclip",
+      issuePrefix: `T${companyId.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+      requireBoardApprovalForNewAgents: false,
+    });
+    await db.insert(issues).values({
+      id: issueId,
+      companyId,
+      title: "Contracted issue",
+      status: "in_review",
+      priority: "medium",
+    });
+
+    await expect(
+      svc.update(issueId, { status: "done", executionPolicy }),
+    ).rejects.toMatchObject({ status: 422 });
+
+    const [closeout] = await db
+      .insert(documents)
+      .values({
+        companyId,
+        latestBody:
+          "## What changed\nGate enforcement shipped.\n\n## What passed\nTests passed.\n\n## What still needs follow-up\nNone.",
+      })
+      .returning();
+    await db.insert(issueDocuments).values({
+      companyId,
+      issueId,
+      documentId: closeout.id,
+      key: "closeout",
+    });
+
+    await expect(
+      svc.update(issueId, { status: "done", executionPolicy }),
+    ).resolves.toMatchObject({ id: issueId, status: "done" });
   });
 
   it("only returns dependents once every blocker is done", async () => {

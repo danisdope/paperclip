@@ -5,6 +5,16 @@ export { agentService, deduplicateAgentName } from "./agents.js";
 export { agentInstructionsService, syncInstructionsBundleConfigFromFilePath } from "./agent-instructions.js";
 export { assetService } from "./assets.js";
 export { documentService, extractLegacyPlanBody } from "./documents.js";
+export {
+  assertApprovalMergeGateReadyForIssue,
+  assertApprovalMergeGateReadyForIssueIds,
+  assertApprovalMergeGateReadyForLinkedIssues,
+  assertIssueCanMoveToDone,
+  countPriorChangesRequestedForActiveGateStage,
+  getExecutionStageGateContext,
+  isMergeGateApprovalPayload,
+  parseGateVerdict,
+} from "./quality-gate-contract.js";
 export { projectService } from "./projects.js";
 export { issueService, type IssueFilters } from "./issues.js";
 export { issueApprovalService } from "./issue-approvals.js";

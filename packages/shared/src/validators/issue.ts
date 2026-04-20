@@ -1,6 +1,8 @@
 import { z } from "zod";
 import {
   ISSUE_EXECUTION_DECISION_OUTCOMES,
+  ISSUE_EXECUTION_GATE_CONTRACT_KINDS,
+  ISSUE_EXECUTION_GATE_KEYS,
   ISSUE_EXECUTION_POLICY_MODES,
   ISSUE_EXECUTION_STAGE_TYPES,
   ISSUE_EXECUTION_STATE_STATUSES,
@@ -91,13 +93,42 @@ export const issueExecutionStageParticipantSchema = issueExecutionStagePrincipal
 export const issueExecutionStageSchema = z.object({
   id: z.string().uuid().optional(),
   type: z.enum(ISSUE_EXECUTION_STAGE_TYPES),
+  gateKey: z.enum(ISSUE_EXECUTION_GATE_KEYS).optional().nullable(),
   approvalsNeeded: z.literal(1).optional().default(1),
   participants: z.array(issueExecutionStageParticipantSchema).default([]),
+});
+
+export const issueExecutionGateContractSchema = z.object({
+  kind: z.enum(ISSUE_EXECUTION_GATE_CONTRACT_KINDS),
+  artifactKeys: z.object({
+    planAudit: z.string().trim().min(1).default("plan_audit"),
+    executionReport: z.string().trim().min(1).default("execution_report"),
+    adversarialReview: z.string().trim().min(1).default("adversarial_review"),
+    codeReview: z.string().trim().min(1).default("code_review"),
+    verification: z.string().trim().min(1).default("verification"),
+    closeout: z.string().trim().min(1).default("closeout"),
+  }).optional().default({
+    planAudit: "plan_audit",
+    executionReport: "execution_report",
+    adversarialReview: "adversarial_review",
+    codeReview: "code_review",
+    verification: "verification",
+    closeout: "closeout",
+  }),
+  reviewBudgetsMinutes: z.object({
+    docsTemplate: z.number().int().positive().default(15),
+    normalCodeChange: z.number().int().positive().default(40),
+  }).optional().default({
+    docsTemplate: 15,
+    normalCodeChange: 40,
+  }),
+  maxAdversarialChangeRequests: z.number().int().nonnegative().default(1),
 });
 
 export const issueExecutionPolicySchema = z.object({
   mode: z.enum(ISSUE_EXECUTION_POLICY_MODES).optional().default("normal"),
   commentRequired: z.boolean().optional().default(true),
+  gateContract: issueExecutionGateContractSchema.optional().nullable(),
   stages: z.array(issueExecutionStageSchema).default([]),
 });
 

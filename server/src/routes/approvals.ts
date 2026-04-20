@@ -10,6 +10,8 @@ import {
 import { validate } from "../middleware/validate.js";
 import { logger } from "../middleware/logger.js";
 import {
+  assertApprovalMergeGateReadyForIssueIds,
+  assertApprovalMergeGateReadyForLinkedIssues,
   approvalService,
   heartbeatService,
   issueApprovalService,
@@ -79,6 +81,11 @@ export function approvalRoutes(db: Db) {
             { strictMode: strictSecretsMode },
           )
         : approvalInput.payload;
+    await assertApprovalMergeGateReadyForIssueIds(
+      db,
+      { payload: normalizedPayload },
+      uniqueIssueIds,
+    );
 
     const actor = getActorInfo(req);
     const approval = await svc.create(companyId, {
@@ -130,9 +137,13 @@ export function approvalRoutes(db: Db) {
   router.post("/approvals/:id/approve", validate(resolveApprovalSchema), async (req, res) => {
     assertBoard(req);
     const id = req.params.id as string;
-    if (!(await requireApprovalAccess(req, id))) {
+    const existingApproval = await requireApprovalAccess(req, id);
+    if (!existingApproval) {
       res.status(404).json({ error: "Approval not found" });
       return;
+    }
+    if (existingApproval.status === "pending" || existingApproval.status === "revision_requested") {
+      await assertApprovalMergeGateReadyForLinkedIssues(db, existingApproval);
     }
     const { approval, applied } = await svc.approve(
       id,
